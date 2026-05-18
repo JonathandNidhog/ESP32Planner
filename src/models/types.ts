@@ -105,6 +105,7 @@ export interface Connection {
   status: "ok" | "warning" | "error";
   message?: string;
   manual?: boolean;
+  waypoints?: Point[];
   warning?: string;
   // Legacy fields kept optional for old JSON migration only.
   componentId?: string;

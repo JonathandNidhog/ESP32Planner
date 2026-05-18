@@ -26,6 +26,8 @@ interface CircuitCanvasProps {
   onPinClick: (endpoint: ConnectionEndpoint) => void;
   onAddComponentAt: (type: string, col: number, row: number) => void;
   onPerfboardResize: (cols: number, rows: number) => void;
+  onAddWaypoint: (id: string, point: Point) => void;
+  onMoveWaypoint: (id: string, index: number, point: Point) => void;
 }
 
 interface ContextMenuState {
@@ -58,7 +60,9 @@ export default function CircuitCanvas({
   onMoveBoard,
   onPinClick,
   onAddComponentAt,
-  onPerfboardResize
+  onPerfboardResize,
+  onAddWaypoint,
+  onMoveWaypoint
 }: CircuitCanvasProps) {
   const usedPinIds = new Set(
     connections.flatMap((connection) => [connection.from, connection.to]).filter((endpoint) => endpoint.kind === "esp32").map((endpoint) => endpoint.pinId)
@@ -252,6 +256,8 @@ export default function CircuitCanvas({
             onSelectComponent(undefined);
             onSelectConnection(id);
           }}
+          onAddWaypoint={onAddWaypoint}
+          onMoveWaypoint={onMoveWaypoint}
         />
         <ESP32Board
           board={board}

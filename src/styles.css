@@ -283,6 +283,11 @@ button.danger {
   filter: drop-shadow(0 2px 2px rgba(15, 23, 42, 0.2));
 }
 
+.wire-waypoint {
+  cursor: move;
+  filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.9));
+}
+
 .pin-anchor {
   cursor: crosshair;
 }

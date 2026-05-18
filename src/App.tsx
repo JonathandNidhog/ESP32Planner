@@ -13,7 +13,7 @@ import { autoAssignPins } from "./engine/autoAssign";
 import { validateConnection } from "./engine/connectionValidator";
 import { boardMetrics, defaultBoardPosition } from "./engine/router";
 import { clearSavedProject, loadProject, saveProject } from "./io/projectIO";
-import type { ComponentDefinition, Connection, ConnectionEndpoint, PerfboardConfig, PlacedComponent, ProjectState, Rotation } from "./models/types";
+import type { ComponentDefinition, Connection, ConnectionEndpoint, PerfboardConfig, PlacedComponent, Point, ProjectState, Rotation } from "./models/types";
 
 const maxPerfboardCols = 220;
 const maxPerfboardRows = 160;
@@ -251,6 +251,31 @@ export default function App() {
     }));
   }
 
+  function addWaypoint(connectionId: string, point: Point) {
+    setProject((current) => ({
+      ...current,
+      connections: current.connections.map((connection) =>
+        connection.id === connectionId
+          ? { ...connection, waypoints: [...(connection.waypoints || []), { x: Math.round(point.x), y: Math.round(point.y) }] }
+          : connection
+      ),
+      selectedConnectionId: connectionId,
+      messages: ["已添加线固定点，可拖动黄色圆点整理线的位置。", ...current.messages].slice(0, 8)
+    }));
+  }
+
+  function moveWaypoint(connectionId: string, index: number, point: Point) {
+    setProject((current) => ({
+      ...current,
+      connections: current.connections.map((connection) => {
+        if (connection.id !== connectionId) return connection;
+        const waypoints = [...(connection.waypoints || [])];
+        waypoints[index] = { x: Math.round(point.x), y: Math.round(point.y) };
+        return { ...connection, waypoints };
+      })
+    }));
+  }
+
   function handlePinClick(endpoint: ConnectionEndpoint) {
     if (!manualWireStart) {
       setManualWireStart(endpoint);
@@ -389,6 +414,8 @@ export default function App() {
           onPinClick={handlePinClick}
           onAddComponentAt={addComponentAt}
           onPerfboardResize={(cols, rows) => changePerfboard({ ...project.perfboard, cols, rows })}
+          onAddWaypoint={addWaypoint}
+          onMoveWaypoint={moveWaypoint}
         />
         <aside className="panel inspector">
           <BoardSettingsPanel
