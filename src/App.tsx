@@ -70,13 +70,19 @@ function normalizeProject(project?: Partial<ProjectState>): ProjectState {
 function createComponent(type: string, index: number, perfboard: PerfboardConfig): PlacedComponent {
   const col = Math.min(perfboard.cols - 2, 3 + (index % 4) * 8);
   const row = Math.min(perfboard.rows - 2, 3 + Math.floor(index / 4) * 6);
+  return createComponentAt(type, index, perfboard, col, row);
+}
+
+function createComponentAt(type: string, index: number, perfboard: PerfboardConfig, col: number, row: number): PlacedComponent {
+  const boardCol = Math.max(0, Math.min(col, perfboard.cols - 1));
+  const boardRow = Math.max(0, Math.min(row, perfboard.rows - 1));
   return {
     id: `${type}-${Date.now().toString(36)}-${index}`,
     type,
-    boardCol: Math.max(0, col),
-    boardRow: Math.max(0, row),
-    x: boardMetrics.gridX + Math.max(0, col) * perfboard.cellSize,
-    y: boardMetrics.gridY + Math.max(0, row) * perfboard.cellSize,
+    boardCol,
+    boardRow,
+    x: boardMetrics.gridX + boardCol * perfboard.cellSize,
+    y: boardMetrics.gridY + boardRow * perfboard.cellSize,
     rotation: 0,
     attrs: {}
   };
@@ -108,12 +114,43 @@ export default function App() {
     [project.connections, project.selectedConnectionId]
   );
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const editing = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable;
+      if (editing || (event.key !== "Delete" && event.key !== "Backspace")) return;
+
+      if (project.selectedConnectionId) {
+        event.preventDefault();
+        deleteConnection(project.selectedConnectionId);
+        return;
+      }
+
+      if (project.selectedComponentId) {
+        event.preventDefault();
+        deleteComponent(project.selectedComponentId);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [project.selectedComponentId, project.selectedConnectionId]);
+
   function addComponent(type: string) {
     const definition = fullLibrary.find((item) => item.type === type);
     setProject((current) => ({
       ...current,
       components: [...current.components, createComponent(type, current.components.length, current.perfboard)],
       messages: [`已添加：${definition?.name || type}。可拖到万能板孔位上，再执行自动连接或手动连线。`, ...current.messages].slice(0, 8)
+    }));
+  }
+
+  function addComponentAt(type: string, col: number, row: number) {
+    const definition = fullLibrary.find((item) => item.type === type);
+    setProject((current) => ({
+      ...current,
+      components: [...current.components, createComponentAt(type, current.components.length, current.perfboard, col, row)],
+      messages: [`已在 C${col}, R${row} 添加：${definition?.name || type}。`, ...current.messages].slice(0, 8)
     }));
   }
 
@@ -342,6 +379,7 @@ export default function App() {
           onMoveComponent={moveComponent}
           onMoveBoard={moveBoard}
           onPinClick={handlePinClick}
+          onAddComponentAt={addComponentAt}
         />
         <aside className="panel inspector">
           <BoardSettingsPanel

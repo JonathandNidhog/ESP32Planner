@@ -181,7 +181,7 @@ button.danger {
 
 .pin-tooltip {
   position: absolute;
-  z-index: 3;
+  z-index: 4;
   max-width: 280px;
   padding: 9px 11px;
   border: 1px solid rgba(15, 23, 42, 0.18);
@@ -193,6 +193,59 @@ button.danger {
   font-size: 12px;
   line-height: 1.55;
   white-space: normal;
+}
+
+.context-add-menu {
+  position: absolute;
+  z-index: 3;
+  width: 300px;
+  max-height: 360px;
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.2);
+  backdrop-filter: blur(12px);
+}
+
+.context-add-title {
+  margin-bottom: 8px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.context-add-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 270px;
+  margin-top: 8px;
+  overflow: auto;
+}
+
+.context-add-list button {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px;
+  text-align: left;
+  background: #f8fafc;
+}
+
+.context-add-list small {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 400;
+}
+
+.context-empty {
+  padding: 10px;
+  color: #64748b;
+  font-size: 12px;
 }
 
 .circuit-canvas {

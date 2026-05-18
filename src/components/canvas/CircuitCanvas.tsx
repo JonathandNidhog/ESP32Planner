@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { boardMetrics } from "../../engine/router";
 import type { ComponentDefinition, Connection, ConnectionEndpoint, ESP32BoardDefinition, PerfboardConfig, PlacedComponent, Point, Rotation } from "../../models/types";
 import ComponentNode from "./ComponentNode";
 import ESP32Board from "./ESP32Board";
@@ -23,6 +24,15 @@ interface CircuitCanvasProps {
   onMoveComponent: (id: string, x: number, y: number, col: number, row: number) => void;
   onMoveBoard: (position: Point) => void;
   onPinClick: (endpoint: ConnectionEndpoint) => void;
+  onAddComponentAt: (type: string, col: number, row: number) => void;
+}
+
+interface ContextMenuState {
+  x: number;
+  y: number;
+  col: number;
+  row: number;
+  query: string;
 }
 
 const minZoom = 0.45;
@@ -45,7 +55,8 @@ export default function CircuitCanvas({
   onSelectConnection,
   onMoveComponent,
   onMoveBoard,
-  onPinClick
+  onPinClick,
+  onAddComponentAt
 }: CircuitCanvasProps) {
   const usedPinIds = new Set(
     connections.flatMap((connection) => [connection.from, connection.to]).filter((endpoint) => endpoint.kind === "esp32").map((endpoint) => endpoint.pinId)
@@ -54,10 +65,20 @@ export default function CircuitCanvas({
   const worldHeight = Math.max(720, 110 + perfboard.rows * perfboard.cellSize + 240);
   const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
   const [pinTooltip, setPinTooltip] = useState<{ text: string; x: number; y: number } | undefined>();
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | undefined>();
   const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
   const highlightedEndpoints = selectedConnection ? [selectedConnection.from, selectedConnection.to] : [];
   const viewWidth = worldWidth / viewport.zoom;
   const viewHeight = worldHeight / viewport.zoom;
+  const filteredLibrary = contextMenu
+    ? library.filter((item) => {
+        const query = contextMenu.query.trim().toLowerCase();
+        if (!query) return true;
+        return [item.name, item.type, item.category, item.description, item.visual?.label]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query));
+      })
+    : [];
 
   function svgPoint(svg: SVGSVGElement, clientX: number, clientY: number) {
     const point = svg.createSVGPoint();
@@ -74,6 +95,35 @@ export default function CircuitCanvas({
     const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
     if (!rect) return;
     setPinTooltip({ text, x: event.clientX - rect.left + 16, y: event.clientY - rect.top + 16 });
+  }
+
+  function pointToPerfboard(point: Point) {
+    return {
+      col: Math.max(0, Math.min(Math.round((point.x - boardMetrics.gridX) / perfboard.cellSize), perfboard.cols - 1)),
+      row: Math.max(0, Math.min(Math.round((point.y - boardMetrics.gridY) / perfboard.cellSize), perfboard.rows - 1))
+    };
+  }
+
+  function handleContextMenu(event: React.MouseEvent<SVGSVGElement>) {
+    event.preventDefault();
+    const svg = event.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const point = svgPoint(svg, event.clientX, event.clientY);
+    const snapped = pointToPerfboard(point);
+    setPinTooltip(undefined);
+    setContextMenu({
+      x: Math.min(event.clientX - rect.left, rect.width - 300),
+      y: Math.min(event.clientY - rect.top, rect.height - 360),
+      col: snapped.col,
+      row: snapped.row,
+      query: ""
+    });
+  }
+
+  function addFromContextMenu(type: string) {
+    if (!contextMenu) return;
+    onAddComponentAt(type, contextMenu.col, contextMenu.row);
+    setContextMenu(undefined);
   }
 
   function handleWheel(event: React.WheelEvent<SVGSVGElement>) {
@@ -97,6 +147,7 @@ export default function CircuitCanvas({
     if (event.target !== event.currentTarget && !(event.target as Element).classList.contains("canvas-background")) return;
     onSelectComponent(undefined);
     onSelectConnection(undefined);
+    setContextMenu(undefined);
     const svg = event.currentTarget;
     const start = svgPoint(svg, event.clientX, event.clientY);
     const startViewport = { ...viewport };
@@ -135,11 +186,39 @@ export default function CircuitCanvas({
           {pinTooltip.text.split("\n").map((line) => <div key={line}>{line}</div>)}
         </div>
       )}
+      {contextMenu && (
+        <div className="context-add-menu" style={{ left: contextMenu.x, top: contextMenu.y }} onPointerDown={(event) => event.stopPropagation()}>
+          <div className="context-add-title">添加元器件到 C{contextMenu.col}, R{contextMenu.row}</div>
+          <input
+            autoFocus
+            value={contextMenu.query}
+            placeholder="输入名称/类型搜索，比如 摇杆、按钮、TFT"
+            onChange={(event) => setContextMenu((current) => current ? { ...current, query: event.target.value } : current)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setContextMenu(undefined);
+              if (event.key === "Enter" && filteredLibrary[0]) addFromContextMenu(filteredLibrary[0].type);
+            }}
+          />
+          <div className="context-add-list">
+            {filteredLibrary.slice(0, 18).map((item) => (
+              <button key={item.type} onClick={() => addFromContextMenu(item.type)}>
+                <span className="component-color" style={{ background: item.color }} />
+                <span>
+                  <strong>{item.name}</strong>
+                  <small>{item.category} · {item.description}</small>
+                </span>
+              </button>
+            ))}
+            {filteredLibrary.length === 0 && <div className="context-empty">没找到匹配元器件</div>}
+          </div>
+        </div>
+      )}
       <svg
         className="circuit-canvas"
         viewBox={`${viewport.x} ${viewport.y} ${viewWidth} ${viewHeight}`}
         onWheel={handleWheel}
         onPointerDown={handleCanvasPointerDown}
+        onContextMenu={handleContextMenu}
       >
         <defs>
           <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
