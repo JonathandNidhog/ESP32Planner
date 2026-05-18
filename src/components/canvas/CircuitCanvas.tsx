@@ -25,6 +25,7 @@ interface CircuitCanvasProps {
   onMoveBoard: (position: Point) => void;
   onPinClick: (endpoint: ConnectionEndpoint) => void;
   onAddComponentAt: (type: string, col: number, row: number) => void;
+  onPerfboardResize: (cols: number, rows: number) => void;
 }
 
 interface ContextMenuState {
@@ -56,7 +57,8 @@ export default function CircuitCanvas({
   onMoveComponent,
   onMoveBoard,
   onPinClick,
-  onAddComponentAt
+  onAddComponentAt,
+  onPerfboardResize
 }: CircuitCanvasProps) {
   const usedPinIds = new Set(
     connections.flatMap((connection) => [connection.from, connection.to]).filter((endpoint) => endpoint.kind === "esp32").map((endpoint) => endpoint.pinId)
@@ -143,13 +145,8 @@ export default function CircuitCanvas({
     });
   }
 
-  function handleCanvasPointerDown(event: React.PointerEvent<SVGSVGElement>) {
-    if (event.target !== event.currentTarget && !(event.target as Element).classList.contains("canvas-background")) return;
-    onSelectComponent(undefined);
-    onSelectConnection(undefined);
-    setContextMenu(undefined);
-    const svg = event.currentTarget;
-    const start = svgPoint(svg, event.clientX, event.clientY);
+  function startPan(svg: SVGSVGElement, clientX: number, clientY: number) {
+    const start = svgPoint(svg, clientX, clientY);
     const startViewport = { ...viewport };
 
     const move = (moveEvent: PointerEvent) => {
@@ -166,6 +163,21 @@ export default function CircuitCanvas({
 
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+  }
+
+  function handleCanvasPointerDown(event: React.PointerEvent<SVGSVGElement>) {
+    if (event.button === 1) {
+      event.preventDefault();
+      setContextMenu(undefined);
+      startPan(event.currentTarget, event.clientX, event.clientY);
+      return;
+    }
+
+    if (event.target !== event.currentTarget && !(event.target as Element).classList.contains("canvas-background")) return;
+    onSelectComponent(undefined);
+    onSelectConnection(undefined);
+    setContextMenu(undefined);
+    startPan(event.currentTarget, event.clientX, event.clientY);
   }
 
   function resetViewport() {
@@ -219,6 +231,7 @@ export default function CircuitCanvas({
         onWheel={handleWheel}
         onPointerDown={handleCanvasPointerDown}
         onContextMenu={handleContextMenu}
+        onAuxClick={(event) => event.preventDefault()}
       >
         <defs>
           <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
@@ -226,7 +239,7 @@ export default function CircuitCanvas({
           </filter>
         </defs>
         <rect className="canvas-background" width={worldWidth} height={worldHeight} fill="#e5edf7" />
-        <PerfboardGrid perfboard={perfboard} />
+        <PerfboardGrid perfboard={perfboard} onResize={onPerfboardResize} />
         <WireLayer
           components={components}
           connections={connections}

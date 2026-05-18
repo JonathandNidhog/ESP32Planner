@@ -15,6 +15,8 @@ import { boardMetrics, defaultBoardPosition } from "./engine/router";
 import { clearSavedProject, loadProject, saveProject } from "./io/projectIO";
 import type { ComponentDefinition, Connection, ConnectionEndpoint, PerfboardConfig, PlacedComponent, ProjectState, Rotation } from "./models/types";
 
+const maxPerfboardCols = 220;
+const maxPerfboardRows = 160;
 const defaultPerfboard: PerfboardConfig = { cols: 36, rows: 26, cellSize: 18 };
 
 function makeDefaultProject(): ProjectState {
@@ -316,15 +318,21 @@ export default function App() {
   }
 
   function changePerfboard(perfboard: PerfboardConfig) {
+    const nextPerfboard = {
+      cols: Math.max(8, Math.min(maxPerfboardCols, perfboard.cols)),
+      rows: Math.max(8, Math.min(maxPerfboardRows, perfboard.rows)),
+      cellSize: Math.max(12, Math.min(26, perfboard.cellSize))
+    };
+
     setProject((current) => ({
       ...current,
-      perfboard,
+      perfboard: nextPerfboard,
       components: current.components.map((component) => ({
         ...component,
-        boardCol: Math.min(component.boardCol, perfboard.cols - 1),
-        boardRow: Math.min(component.boardRow, perfboard.rows - 1),
-        x: boardMetrics.gridX + Math.min(component.boardCol, perfboard.cols - 1) * perfboard.cellSize,
-        y: boardMetrics.gridY + Math.min(component.boardRow, perfboard.rows - 1) * perfboard.cellSize
+        boardCol: Math.min(component.boardCol, nextPerfboard.cols - 1),
+        boardRow: Math.min(component.boardRow, nextPerfboard.rows - 1),
+        x: boardMetrics.gridX + Math.min(component.boardCol, nextPerfboard.cols - 1) * nextPerfboard.cellSize,
+        y: boardMetrics.gridY + Math.min(component.boardRow, nextPerfboard.rows - 1) * nextPerfboard.cellSize
       }))
     }));
   }
@@ -380,6 +388,7 @@ export default function App() {
           onMoveBoard={moveBoard}
           onPinClick={handlePinClick}
           onAddComponentAt={addComponentAt}
+          onPerfboardResize={(cols, rows) => changePerfboard({ ...project.perfboard, cols, rows })}
         />
         <aside className="panel inspector">
           <BoardSettingsPanel

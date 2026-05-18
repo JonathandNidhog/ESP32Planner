@@ -10,6 +10,9 @@ interface BoardSettingsPanelProps {
   onPerfboardChange: (config: PerfboardConfig) => void;
 }
 
+const maxCols = 220;
+const maxRows = 160;
+
 function clampNumber(value: number, min: number, max: number) {
   if (Number.isNaN(value)) return min;
   return Math.max(min, Math.min(max, value));
@@ -20,8 +23,8 @@ export default function BoardSettingsPanel({ boardId, boardRotation, perfboard, 
 
   function updatePerfboard(partial: Partial<PerfboardConfig>) {
     onPerfboardChange({
-      cols: clampNumber(partial.cols ?? perfboard.cols, 8, 80),
-      rows: clampNumber(partial.rows ?? perfboard.rows, 8, 60),
+      cols: clampNumber(partial.cols ?? perfboard.cols, 8, maxCols),
+      rows: clampNumber(partial.rows ?? perfboard.rows, 8, maxRows),
       cellSize: clampNumber(partial.cellSize ?? perfboard.cellSize, 12, 26)
     });
   }
@@ -42,18 +45,19 @@ export default function BoardSettingsPanel({ boardId, boardRotation, perfboard, 
       </div>
       <div className="settings-grid">
         <label>
-          列数
-          <input type="number" min={8} max={80} value={perfboard.cols} onChange={(event) => updatePerfboard({ cols: Number(event.target.value) })} />
+          列数 / 最大 {maxCols}
+          <input type="number" min={8} max={maxCols} value={perfboard.cols} onChange={(event) => updatePerfboard({ cols: Number(event.target.value) })} />
         </label>
         <label>
-          行数
-          <input type="number" min={8} max={60} value={perfboard.rows} onChange={(event) => updatePerfboard({ rows: Number(event.target.value) })} />
+          行数 / 最大 {maxRows}
+          <input type="number" min={8} max={maxRows} value={perfboard.rows} onChange={(event) => updatePerfboard({ rows: Number(event.target.value) })} />
         </label>
         <label>
           显示孔距
           <input type="number" min={12} max={26} value={perfboard.cellSize} onChange={(event) => updatePerfboard({ cellSize: Number(event.target.value) })} />
         </label>
       </div>
+      <p className="hint">也可以直接拖动画布中万能板的右边缘、下边缘或右下角来调整行列数。</p>
     </section>
   );
 }
