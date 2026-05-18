@@ -7,6 +7,7 @@ interface ComponentNodeProps {
   perfboard: PerfboardConfig;
   selected: boolean;
   manualWireStart?: ConnectionEndpoint;
+  highlightedEndpoints: ConnectionEndpoint[];
   onSelect: (id: string) => void;
   onMove: (id: string, x: number, y: number, col: number, row: number) => void;
   onPinClick: (endpoint: ConnectionEndpoint) => void;
@@ -144,7 +145,11 @@ function describeComponentPin(definition: ComponentDefinition, pin: ComponentDef
   return `${definition.name} - ${pin.label}\n${role}，需要连接：${caps}\n${pin.note || "用于该模块的对应功能接口。"}`;
 }
 
-export default function ComponentNode({ component, definition, perfboard, selected, manualWireStart, onSelect, onMove, onPinClick, onPinHover }: ComponentNodeProps) {
+function endpointMatches(a: ConnectionEndpoint, b: ConnectionEndpoint) {
+  return a.kind === b.kind && a.pinId === b.pinId && (a.componentId || "") === (b.componentId || "");
+}
+
+export default function ComponentNode({ component, definition, perfboard, selected, manualWireStart, highlightedEndpoints, onSelect, onMove, onPinClick, onPinHover }: ComponentNodeProps) {
   if (!definition) return null;
 
   const { width, height } = getComponentSize(definition.footprint);
@@ -205,6 +210,7 @@ export default function ComponentNode({ component, definition, perfboard, select
         const y = ((index + 1) * height) / (definition.pins.length + 1);
         const endpoint: ConnectionEndpoint = { kind: "component", componentId: component.id, pinId: pin.id };
         const drafting = manualWireStart?.kind === "component" && manualWireStart.componentId === component.id && manualWireStart.pinId === pin.id;
+        const highlighted = highlightedEndpoints.some((item) => endpointMatches(item, endpoint));
         const hoverText = describeComponentPin(definition, pin);
         return (
           <g
@@ -218,7 +224,15 @@ export default function ComponentNode({ component, definition, perfboard, select
             onPointerMove={(event) => onPinHover(hoverText, event)}
             onPointerLeave={() => onPinHover(undefined)}
           >
-            <circle cx={0} cy={y} r={7} fill={drafting ? "#facc15" : "#fff"} stroke="#111827" strokeWidth={1.4} />
+            <circle
+              className={highlighted ? "pin-anchor-highlight" : undefined}
+              cx={0}
+              cy={y}
+              r={highlighted ? 10 : 7}
+              fill={highlighted || drafting ? "#facc15" : "#fff"}
+              stroke={highlighted ? "#f97316" : "#111827"}
+              strokeWidth={highlighted ? 3 : 1.4}
+            />
             <rect x={8} y={y - 9} width={Math.max(34, pin.label.length * 8 + 10)} height={18} rx={5} fill="rgba(15,23,42,0.68)" />
             <text x={14} y={y + 4} fill="white" fontSize={11} fontWeight={700} transform={upright(component.rotation, 14, y + 4)}>
               {pin.label}

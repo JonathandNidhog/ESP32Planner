@@ -239,6 +239,10 @@ button.danger {
   stroke-width: 3;
 }
 
+.pin-anchor-highlight {
+  filter: drop-shadow(0 0 7px rgba(249, 115, 22, 0.95));
+}
+
 .panel-section {
   padding-bottom: 16px;
   margin-bottom: 16px;

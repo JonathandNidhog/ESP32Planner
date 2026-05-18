@@ -11,6 +11,7 @@ interface ESP32BoardProps {
   viewHeight: number;
   perfboard: PerfboardConfig;
   manualWireStart?: ConnectionEndpoint;
+  highlightedEndpoints: ConnectionEndpoint[];
   onSelect: () => void;
   onMove: (position: Point) => void;
   onPinClick: (endpoint: ConnectionEndpoint) => void;
@@ -19,6 +20,10 @@ interface ESP32BoardProps {
 
 function upright(rotation: number, x: number, y: number) {
   return rotation === 0 ? undefined : `rotate(${-rotation}, ${x}, ${y})`;
+}
+
+function endpointMatches(a: ConnectionEndpoint, b: ConnectionEndpoint) {
+  return a.kind === b.kind && a.pinId === b.pinId && (a.componentId || "") === (b.componentId || "");
 }
 
 function describeBoardPin(pin: ESP32Pin) {
@@ -45,6 +50,7 @@ export default function ESP32Board({
   viewHeight,
   perfboard,
   manualWireStart,
+  highlightedEndpoints,
   onSelect,
   onMove,
   onPinClick,
@@ -118,6 +124,7 @@ export default function ESP32Board({
         const fill = used ? "#facc15" : isPower ? "#ef4444" : isGround ? "#475569" : "#38bdf8";
         const endpoint: ConnectionEndpoint = { kind: "esp32", pinId: pin.id };
         const drafting = manualWireStart?.kind === "esp32" && manualWireStart.pinId === pin.id;
+        const highlighted = highlightedEndpoints.some((item) => endpointMatches(item, endpoint));
         const hoverText = describeBoardPin(pin);
 
         return (
@@ -132,7 +139,15 @@ export default function ESP32Board({
             onPointerMove={(event) => onPinHover(hoverText, event)}
             onPointerLeave={() => onPinHover(undefined)}
           >
-            <circle cx={pinX} cy={y} r={drafting ? 10 : 8} fill={drafting ? "#facc15" : fill} stroke="#f8fafc" strokeWidth={1.5}>
+            <circle
+              className={highlighted ? "pin-anchor-highlight" : undefined}
+              cx={pinX}
+              cy={y}
+              r={highlighted || drafting ? 11 : 8}
+              fill={highlighted || drafting ? "#facc15" : fill}
+              stroke={highlighted ? "#f97316" : "#f8fafc"}
+              strokeWidth={highlighted ? 3.5 : 1.5}
+            >
               <title>{hoverText}</title>
             </circle>
             <text x={labelX} y={y + 4} textAnchor={anchor} fill="#e2e8f0" fontSize={11} transform={upright(rotation, labelX, y + 4)}>

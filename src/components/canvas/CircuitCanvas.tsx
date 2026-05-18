@@ -54,6 +54,8 @@ export default function CircuitCanvas({
   const worldHeight = Math.max(720, 110 + perfboard.rows * perfboard.cellSize + 240);
   const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
   const [pinTooltip, setPinTooltip] = useState<{ text: string; x: number; y: number } | undefined>();
+  const selectedConnection = connections.find((connection) => connection.id === selectedConnectionId);
+  const highlightedEndpoints = selectedConnection ? [selectedConnection.from, selectedConnection.to] : [];
   const viewWidth = worldWidth / viewport.zoom;
   const viewHeight = worldHeight / viewport.zoom;
 
@@ -169,6 +171,7 @@ export default function CircuitCanvas({
           viewHeight={worldHeight}
           perfboard={perfboard}
           manualWireStart={manualWireStart}
+          highlightedEndpoints={highlightedEndpoints}
           onSelect={onSelectBoard}
           onMove={onMoveBoard}
           onPinClick={onPinClick}
@@ -182,6 +185,7 @@ export default function CircuitCanvas({
             perfboard={perfboard}
             selected={selectedComponentId === component.id}
             manualWireStart={manualWireStart}
+            highlightedEndpoints={highlightedEndpoints}
             onSelect={onSelectComponent}
             onMove={onMoveComponent}
             onPinClick={onPinClick}
