@@ -53,6 +53,7 @@ export default function CircuitCanvas({
   const worldWidth = Math.max(1120, 380 + perfboard.cols * perfboard.cellSize + 260);
   const worldHeight = Math.max(720, 110 + perfboard.rows * perfboard.cellSize + 240);
   const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
+  const [pinTooltip, setPinTooltip] = useState<{ text: string; x: number; y: number } | undefined>();
   const viewWidth = worldWidth / viewport.zoom;
   const viewHeight = worldHeight / viewport.zoom;
 
@@ -61,6 +62,16 @@ export default function CircuitCanvas({
     point.x = clientX;
     point.y = clientY;
     return point.matrixTransform(svg.getScreenCTM()?.inverse());
+  }
+
+  function updatePinTooltip(text?: string, event?: React.PointerEvent<SVGGElement>) {
+    if (!text || !event) {
+      setPinTooltip(undefined);
+      return;
+    }
+    const rect = event.currentTarget.ownerSVGElement?.getBoundingClientRect();
+    if (!rect) return;
+    setPinTooltip({ text, x: event.clientX - rect.left + 16, y: event.clientY - rect.top + 16 });
   }
 
   function handleWheel(event: React.WheelEvent<SVGSVGElement>) {
@@ -117,6 +128,11 @@ export default function CircuitCanvas({
         <button onClick={resetViewport}>重置视口</button>
         {manualWireStart && <span className="wire-draft-label">选择终点</span>}
       </div>
+      {pinTooltip && (
+        <div className="pin-tooltip" style={{ left: pinTooltip.x, top: pinTooltip.y }}>
+          {pinTooltip.text.split("\n").map((line) => <div key={line}>{line}</div>)}
+        </div>
+      )}
       <svg
         className="circuit-canvas"
         viewBox={`${viewport.x} ${viewport.y} ${viewWidth} ${viewHeight}`}
@@ -156,6 +172,7 @@ export default function CircuitCanvas({
           onSelect={onSelectBoard}
           onMove={onMoveBoard}
           onPinClick={onPinClick}
+          onPinHover={updatePinTooltip}
         />
         {components.map((component) => (
           <ComponentNode
@@ -168,6 +185,7 @@ export default function CircuitCanvas({
             onSelect={onSelectComponent}
             onMove={onMoveComponent}
             onPinClick={onPinClick}
+            onPinHover={updatePinTooltip}
           />
         ))}
       </svg>
