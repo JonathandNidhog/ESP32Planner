@@ -14,7 +14,7 @@
 - GND、电源和信号类型会严格校验，连错会提示错误
 - 支持单独删除组件和单独删除连线
 - 多条线会自动错开走线，减少重叠
-- 订单截图中常用模块库：ESP32-C6 LCD、ESP32-S3-N16R8、TFT 屏、MPU6050、PS2 摇杆、功放、喇叭、锂电/充电/升压、WS2812、MicroSD、PogoPin、Type-C 测试板、微型步进电机等
+- ESP32-C6 LCD、ESP32-S3-N16R8、TFT 屏、MPU6050、PS2 摇杆、功放、喇叭、锂电/充电/升压、WS2812、MicroSD、PogoPin、Type-C 测试板、微型步进电机等
 - JSON 导入/导出
 - Arduino 风格代码静态检查
 
