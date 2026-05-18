@@ -12,7 +12,24 @@ export type PinCapability =
 export type PinRole = "power" | "ground" | "signal";
 export type ComponentCategory = "基础" | "传感器" | "显示" | "执行器" | "模块" | "输入" | "自定义";
 export type Rotation = 0 | 90 | 180 | 270;
-export type VisualKind = "led" | "resistor" | "button" | "sensor" | "display" | "actuator" | "module" | "key-switch" | "generic";
+export type VisualKind =
+  | "led"
+  | "resistor"
+  | "button"
+  | "potentiometer"
+  | "joystick"
+  | "sensor"
+  | "display"
+  | "tft"
+  | "actuator"
+  | "speaker"
+  | "battery"
+  | "charger"
+  | "pogo"
+  | "usb-c"
+  | "module"
+  | "key-switch"
+  | "generic";
 
 export interface Point {
   x: number;
@@ -74,13 +91,25 @@ export interface PlacedComponent {
   attrs?: Record<string, string | number | boolean>;
 }
 
+export interface ConnectionEndpoint {
+  kind: "esp32" | "component";
+  pinId: string;
+  componentId?: string;
+}
+
 export interface Connection {
   id: string;
-  componentId: string;
-  componentPinId: string;
-  esp32PinId: string;
+  from: ConnectionEndpoint;
+  to: ConnectionEndpoint;
   color: string;
+  status: "ok" | "warning" | "error";
+  message?: string;
+  manual?: boolean;
   warning?: string;
+  // Legacy fields kept optional for old JSON migration only.
+  componentId?: string;
+  componentPinId?: string;
+  esp32PinId?: string;
 }
 
 export interface PerfboardConfig {
@@ -99,6 +128,7 @@ export interface ProjectState {
   customComponents: ComponentDefinition[];
   connections: Connection[];
   selectedComponentId?: string;
+  selectedConnectionId?: string;
   messages: string[];
   codeTest?: string;
 }

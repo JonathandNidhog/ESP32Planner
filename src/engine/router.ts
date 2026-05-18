@@ -1,4 +1,4 @@
-import type { Connection, ESP32Pin, PerfboardConfig, PlacedComponent, Point, Rotation } from "../models/types";
+import type { ComponentDefinition, Connection, ConnectionEndpoint, ESP32Pin, PerfboardConfig, PlacedComponent, Point, Rotation } from "../models/types";
 
 export const boardMetrics = {
   espX: 80,
@@ -77,9 +77,37 @@ export function getComponentPinPoint(
   return rotatePoint(local, { x: component.x + size.width / 2, y: component.y + size.height / 2 }, component.rotation);
 }
 
-export function routeConnection(from: Point, to: Point): Point[] {
-  const midX = Math.round((from.x + to.x) / 2);
-  return [from, { x: midX, y: from.y }, { x: midX, y: to.y }, to];
+export function getEndpointPoint(
+  endpoint: ConnectionEndpoint,
+  boardPins: ESP32Pin[],
+  boardPosition: Point,
+  boardRotation: Rotation,
+  components: PlacedComponent[],
+  library: ComponentDefinition[]
+): Point {
+  if (endpoint.kind === "esp32") {
+    return getEsp32PinPoint(endpoint.pinId, boardPins, boardPosition, boardRotation);
+  }
+
+  const component = components.find((item) => item.id === endpoint.componentId);
+  const definition = library.find((item) => item.type === component?.type);
+  if (!component || !definition) return { x: 0, y: 0 };
+  const pinIndex = Math.max(0, definition.pins.findIndex((pin) => pin.id === endpoint.pinId));
+  return getComponentPinPoint(component, pinIndex, definition.pins.length, definition.footprint);
+}
+
+export function routeConnection(from: Point, to: Point, index = 0): Point[] {
+  const channel = (index % 12) - 5.5;
+  const offset = channel * 8;
+  const horizontalFirst = Math.abs(from.x - to.x) > Math.abs(from.y - to.y);
+
+  if (horizontalFirst) {
+    const midX = Math.round((from.x + to.x) / 2 + offset);
+    return [from, { x: midX, y: from.y }, { x: midX, y: to.y }, to];
+  }
+
+  const midY = Math.round((from.y + to.y) / 2 + offset);
+  return [from, { x: from.x, y: midY }, { x: to.x, y: midY }, to];
 }
 
 export function connectionPath(points: Point[]): string {
@@ -88,17 +116,15 @@ export function connectionPath(points: Point[]): string {
 
 export function getConnectionAnchor(
   connection: Connection,
-  component: PlacedComponent,
-  pinIndex: number,
-  pinCount: number,
   boardPins: ESP32Pin[],
   boardPosition: Point = defaultBoardPosition,
   boardRotation: Rotation = 0,
-  footprint?: { cols: number; rows: number }
+  components: PlacedComponent[],
+  library: ComponentDefinition[]
 ) {
   return {
-    from: getEsp32PinPoint(connection.esp32PinId, boardPins, boardPosition, boardRotation),
-    to: getComponentPinPoint(component, pinIndex, pinCount, footprint)
+    from: getEndpointPoint(connection.from, boardPins, boardPosition, boardRotation, components, library),
+    to: getEndpointPoint(connection.to, boardPins, boardPosition, boardRotation, components, library)
   };
 }
 

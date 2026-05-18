@@ -1,4 +1,5 @@
 import type { CodeIssue, ComponentDefinition, Connection, ESP32Pin, PlacedComponent } from "../models/types";
+import { describeEndpoint } from "./connectionValidator";
 
 function resolveToken(token: string, constants: Map<string, number>): number | undefined {
   const trimmed = token.trim();
@@ -18,12 +19,12 @@ export function analyzeArduinoCode(
   const connectedGpios = new Map<number, string[]>();
 
   for (const connection of connections) {
-    const pin = boardPins.find((item) => item.id === connection.esp32PinId);
-    if (pin?.gpio === undefined) continue;
-    const component = components.find((item) => item.id === connection.componentId);
-    const definition = library.find((item) => item.type === component?.type);
-    const componentPin = definition?.pins.find((item) => item.id === connection.componentPinId);
-    const label = `${definition?.name || connection.componentId}.${componentPin?.label || connection.componentPinId}`;
+    const endpoints = [connection.from, connection.to];
+    const boardEndpoint = endpoints.find((endpoint) => endpoint.kind === "esp32");
+    const otherEndpoint = endpoints.find((endpoint) => endpoint !== boardEndpoint);
+    const pin = boardPins.find((item) => item.id === boardEndpoint?.pinId);
+    if (pin?.gpio === undefined || !otherEndpoint) continue;
+    const label = describeEndpoint(otherEndpoint, boardPins, components, library);
     connectedGpios.set(pin.gpio, [...(connectedGpios.get(pin.gpio) || []), label]);
   }
 

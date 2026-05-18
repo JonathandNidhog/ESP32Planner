@@ -10,9 +10,10 @@ import CircuitCanvas from "./components/canvas/CircuitCanvas";
 import { componentLibrary } from "./data/componentLibrary";
 import { defaultBoardId, getBoardDefinition } from "./data/esp32Boards";
 import { autoAssignPins } from "./engine/autoAssign";
+import { validateConnection } from "./engine/connectionValidator";
 import { boardMetrics, defaultBoardPosition } from "./engine/router";
 import { clearSavedProject, loadProject, saveProject } from "./io/projectIO";
-import type { ComponentDefinition, PerfboardConfig, PlacedComponent, ProjectState, Rotation } from "./models/types";
+import type { ComponentDefinition, Connection, ConnectionEndpoint, PerfboardConfig, PlacedComponent, ProjectState, Rotation } from "./models/types";
 
 const defaultPerfboard: PerfboardConfig = { cols: 36, rows: 26, cellSize: 18 };
 
@@ -26,12 +27,31 @@ function makeDefaultProject(): ProjectState {
     components: [],
     customComponents: [],
     connections: [],
-    messages: ["从左侧添加元器件，然后点击自动连接。"],
+    messages: ["从左侧添加元器件，然后点击自动连接，或点击两个引脚手动连线。"],
     codeTest: ""
   };
 }
 
+function migrateConnection(connection: Partial<Connection>): Connection | undefined {
+  if (connection.from && connection.to && connection.id && connection.color && connection.status) {
+    return connection as Connection;
+  }
+  if (connection.componentId && connection.componentPinId && connection.esp32PinId) {
+    return {
+      id: connection.id || `legacy-${connection.componentId}-${connection.componentPinId}-${connection.esp32PinId}`,
+      from: { kind: "esp32", pinId: connection.esp32PinId },
+      to: { kind: "component", componentId: connection.componentId, pinId: connection.componentPinId },
+      color: connection.color || "#2563eb",
+      status: connection.warning ? "warning" : "ok",
+      message: connection.warning,
+      warning: connection.warning
+    };
+  }
+  return undefined;
+}
+
 function normalizeProject(project?: Partial<ProjectState>): ProjectState {
+  const migratedConnections = (project?.connections || []).map((connection) => migrateConnection(connection)).filter(Boolean) as Connection[];
   return {
     ...makeDefaultProject(),
     ...project,
@@ -40,7 +60,9 @@ function normalizeProject(project?: Partial<ProjectState>): ProjectState {
     boardRotation: project?.boardRotation || 0,
     perfboard: { ...defaultPerfboard, ...(project?.perfboard || {}) },
     customComponents: project?.customComponents || [],
-    messages: project?.messages || ["从左侧添加元器件，然后点击自动连接。"],
+    connections: migratedConnections,
+    selectedConnectionId: undefined,
+    messages: project?.messages || ["从左侧添加元器件，然后点击自动连接，或点击两个引脚手动连线。"],
     codeTest: project?.codeTest || ""
   };
 }
@@ -55,13 +77,19 @@ function createComponent(type: string, index: number, perfboard: PerfboardConfig
     boardRow: Math.max(0, row),
     x: boardMetrics.gridX + Math.max(0, col) * perfboard.cellSize,
     y: boardMetrics.gridY + Math.max(0, row) * perfboard.cellSize,
-    rotation: 0
+    rotation: 0,
+    attrs: {}
   };
+}
+
+function endpointId(endpoint: ConnectionEndpoint) {
+  return `${endpoint.kind}-${endpoint.componentId || "board"}-${endpoint.pinId}`;
 }
 
 export default function App() {
   const [project, setProject] = useState<ProjectState>(() => normalizeProject(loadProject()));
   const [selectedBoard, setSelectedBoard] = useState(false);
+  const [manualWireStart, setManualWireStart] = useState<ConnectionEndpoint | undefined>();
 
   const currentBoard = useMemo(() => getBoardDefinition(project.boardId), [project.boardId]);
   const fullLibrary = useMemo(() => [...componentLibrary, ...project.customComponents], [project.customComponents]);
@@ -75,12 +103,17 @@ export default function App() {
     [project.components, project.selectedComponentId]
   );
 
+  const selectedConnection = useMemo(
+    () => project.connections.find((item) => item.id === project.selectedConnectionId),
+    [project.connections, project.selectedConnectionId]
+  );
+
   function addComponent(type: string) {
     const definition = fullLibrary.find((item) => item.type === type);
     setProject((current) => ({
       ...current,
       components: [...current.components, createComponent(type, current.components.length, current.perfboard)],
-      messages: [`已添加：${definition?.name || type}。可拖到万能板孔位上，再执行自动连接。`, ...current.messages].slice(0, 8)
+      messages: [`已添加：${definition?.name || type}。可拖到万能板孔位上，再执行自动连接或手动连线。`, ...current.messages].slice(0, 8)
     }));
   }
 
@@ -116,9 +149,21 @@ export default function App() {
     setProject((current) => ({
       ...current,
       components: current.components.filter((component) => component.id !== id),
-      connections: current.connections.filter((connection) => connection.componentId !== id),
+      connections: current.connections.filter(
+        (connection) => connection.from.componentId !== id && connection.to.componentId !== id
+      ),
       selectedComponentId: undefined,
+      selectedConnectionId: undefined,
       messages: [`已删除组件：${id}`, ...current.messages].slice(0, 8)
+    }));
+  }
+
+  function deleteConnection(id: string) {
+    setProject((current) => ({
+      ...current,
+      connections: current.connections.filter((connection) => connection.id !== id),
+      selectedConnectionId: undefined,
+      messages: [`已删除连线：${id}`, ...current.messages].slice(0, 8)
     }));
   }
 
@@ -134,24 +179,91 @@ export default function App() {
     }));
   }
 
+  function interactComponent(id: string) {
+    setProject((current) => ({
+      ...current,
+      components: current.components.map((component) => {
+        if (component.id !== id) return component;
+        const definition = fullLibrary.find((item) => item.type === component.type);
+        const kind = definition?.visual?.kind;
+        if (kind === "button" || kind === "key-switch") {
+          return { ...component, attrs: { ...component.attrs, pressed: !component.attrs?.pressed } };
+        }
+        if (kind === "potentiometer") {
+          return { ...component, attrs: { ...component.attrs, angle: (Number(component.attrs?.angle || 0) + 45) % 360 } };
+        }
+        if (kind === "joystick") {
+          const currentX = Number(component.attrs?.joyX || 0);
+          const nextX = currentX >= 14 ? -14 : currentX + 14;
+          return { ...component, attrs: { ...component.attrs, joyX: nextX, joyY: nextX === 0 ? 0 : 8 } };
+        }
+        return component;
+      })
+    }));
+  }
+
   function autoAssign() {
-    const result = autoAssignPins(project.components, currentBoard.pins, project.customComponents, []);
+    const result = autoAssignPins(project.components, currentBoard.pins, project.customComponents, project.connections.filter((item) => item.manual));
     setProject((current) => ({
       ...current,
       connections: result.connections,
+      selectedConnectionId: undefined,
       messages: result.messages
+    }));
+  }
+
+  function handlePinClick(endpoint: ConnectionEndpoint) {
+    if (!manualWireStart) {
+      setManualWireStart(endpoint);
+      setProject((current) => ({
+        ...current,
+        messages: [`已选择起点：${endpoint.kind === "esp32" ? endpoint.pinId : `${endpoint.componentId}.${endpoint.pinId}`}，请点击终点。`, ...current.messages].slice(0, 8)
+      }));
+      return;
+    }
+
+    const validation = validateConnection(manualWireStart, endpoint, currentBoard.pins, project.components, fullLibrary);
+    if (!validation.ok) {
+      setManualWireStart(undefined);
+      setProject((current) => ({
+        ...current,
+        messages: [`手动连线失败：${validation.message}`, ...current.messages].slice(0, 8)
+      }));
+      return;
+    }
+
+    const connection: Connection = {
+      id: `manual-${endpointId(manualWireStart)}-${endpointId(endpoint)}-${Date.now().toString(36)}`,
+      from: manualWireStart,
+      to: endpoint,
+      color: validation.color,
+      status: validation.severity,
+      message: validation.message,
+      manual: true
+    };
+
+    setManualWireStart(undefined);
+    setProject((current) => ({
+      ...current,
+      connections: [...current.connections, connection],
+      selectedConnectionId: connection.id,
+      selectedComponentId: undefined,
+      messages: [`手动连线完成：${validation.message}`, ...current.messages].slice(0, 8)
     }));
   }
 
   function clearProject() {
     clearSavedProject();
+    setManualWireStart(undefined);
     setProject(makeDefaultProject());
   }
 
   function importProject(imported: ProjectState) {
+    setManualWireStart(undefined);
     setProject({
       ...normalizeProject(imported),
       selectedComponentId: undefined,
+      selectedConnectionId: undefined,
       messages: ["JSON 项目导入完成。", ...(imported.messages || [])].slice(0, 8)
     });
   }
@@ -161,6 +273,7 @@ export default function App() {
       ...current,
       boardId,
       connections: [],
+      selectedConnectionId: undefined,
       messages: [`已切换板型：${getBoardDefinition(boardId).name}。请重新自动连接。`, ...current.messages].slice(0, 8)
     }));
   }
@@ -192,7 +305,14 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Toolbar project={project} onAutoAssign={autoAssign} onClear={clearProject} onImport={importProject} />
+      <Toolbar
+        project={project}
+        manualWireStartActive={Boolean(manualWireStart)}
+        onAutoAssign={autoAssign}
+        onClear={clearProject}
+        onCancelManualWire={() => setManualWireStart(undefined)}
+        onImport={importProject}
+      />
       <main className="workspace">
         <ComponentLibrary library={fullLibrary} onAdd={addComponent} />
         <CircuitCanvas
@@ -205,16 +325,23 @@ export default function App() {
           boardRotation={project.boardRotation}
           selectedComponentId={project.selectedComponentId}
           selectedBoard={selectedBoard}
+          selectedConnectionId={project.selectedConnectionId}
+          manualWireStart={manualWireStart}
           onSelectComponent={(id) => {
             setSelectedBoard(false);
-            setProject((current) => ({ ...current, selectedComponentId: id }));
+            setProject((current) => ({ ...current, selectedComponentId: id, selectedConnectionId: undefined }));
           }}
           onSelectBoard={() => {
             setSelectedBoard(true);
-            setProject((current) => ({ ...current, selectedComponentId: undefined }));
+            setProject((current) => ({ ...current, selectedComponentId: undefined, selectedConnectionId: undefined }));
+          }}
+          onSelectConnection={(id) => {
+            setSelectedBoard(false);
+            setProject((current) => ({ ...current, selectedConnectionId: id, selectedComponentId: undefined }));
           }}
           onMoveComponent={moveComponent}
           onMoveBoard={moveBoard}
+          onPinClick={handlePinClick}
         />
         <aside className="panel inspector">
           <BoardSettingsPanel
@@ -227,11 +354,15 @@ export default function App() {
           />
           <PropertyPanel
             component={selectedComponent}
+            selectedConnection={selectedConnection}
+            components={project.components}
             library={fullLibrary}
             connections={project.connections}
             boardPins={currentBoard.pins}
             onDelete={deleteComponent}
+            onDeleteConnection={deleteConnection}
             onRotate={rotateComponent}
+            onInteract={interactComponent}
           />
           <PinPanel
             library={fullLibrary}

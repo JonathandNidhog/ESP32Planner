@@ -1,18 +1,59 @@
 import { boardMetrics, clampToPerfboard, getComponentSize } from "../../engine/router";
-import type { ComponentDefinition, PerfboardConfig, PlacedComponent } from "../../models/types";
+import type { ComponentDefinition, ConnectionEndpoint, PerfboardConfig, PlacedComponent } from "../../models/types";
 
 interface ComponentNodeProps {
   component: PlacedComponent;
   definition?: ComponentDefinition;
   perfboard: PerfboardConfig;
   selected: boolean;
+  manualWireStart?: ConnectionEndpoint;
   onSelect: (id: string) => void;
   onMove: (id: string, x: number, y: number, col: number, row: number) => void;
+  onPinClick: (endpoint: ConnectionEndpoint) => void;
 }
 
-function VisualGlyph({ kind, color, width, height, label }: { kind: string; color: string; width: number; height: number; label: string }) {
+function VisualGlyph({ component, definition, width, height }: { component: PlacedComponent; definition: ComponentDefinition; width: number; height: number }) {
+  const kind = definition.visual?.kind || "generic";
+  const label = definition.visual?.label || definition.name;
+  const color = definition.color;
   const cx = width * 0.58;
   const cy = height * 0.5;
+  const pressed = Boolean(component.attrs?.pressed);
+  const angle = Number(component.attrs?.angle || 0);
+  const joyX = Number(component.attrs?.joyX || 0);
+  const joyY = Number(component.attrs?.joyY || 0);
+
+  if (kind === "button") {
+    return (
+      <g>
+        <rect x={cx - 26} y={cy - 18} width={52} height={36} rx={10} fill="#111827" opacity={0.38} />
+        <circle cx={cx} cy={cy + (pressed ? 4 : 0)} r={22} fill={pressed ? "#ef4444" : "#f8fafc"} stroke="white" strokeWidth={3} />
+        <text x={cx} y={cy + 5} textAnchor="middle" fontSize={11} fontWeight={900} fill={pressed ? "white" : color}>BTN</text>
+      </g>
+    );
+  }
+
+  if (kind === "potentiometer") {
+    const knobX = cx + Math.cos((angle * Math.PI) / 180) * 15;
+    const knobY = cy + Math.sin((angle * Math.PI) / 180) * 15;
+    return (
+      <g>
+        <rect x={cx - 30} y={cy - 22} width={60} height={44} rx={7} fill="rgba(255,255,255,0.28)" stroke="white" strokeWidth={2} />
+        <circle cx={cx} cy={cy} r={22} fill="#334155" stroke="white" strokeWidth={2} />
+        <line x1={cx} y1={cy} x2={knobX} y2={knobY} stroke="#facc15" strokeWidth={4} strokeLinecap="round" />
+      </g>
+    );
+  }
+
+  if (kind === "joystick") {
+    return (
+      <g>
+        <rect x={cx - 34} y={cy - 28} width={68} height={56} rx={8} fill="rgba(255,255,255,0.22)" stroke="white" strokeWidth={2} />
+        <circle cx={cx} cy={cy} r={25} fill="#1f2937" opacity={0.55} />
+        <circle cx={cx + joyX} cy={cy + joyY} r={18} fill="#111827" stroke="#f8fafc" strokeWidth={3} />
+      </g>
+    );
+  }
 
   if (kind === "led") {
     return (
@@ -34,11 +75,41 @@ function VisualGlyph({ kind, color, width, height, label }: { kind: string; colo
     );
   }
 
-  if (kind === "display") {
+  if (kind === "display" || kind === "tft") {
     return (
       <g>
-        <rect x={width * 0.38} y={cy - 22} width={70} height={44} rx={5} fill="#0f172a" stroke="white" strokeWidth={2} />
-        <rect x={width * 0.43} y={cy - 13} width={48} height={24} rx={3} fill="#67e8f9" opacity={0.78} />
+        <rect x={width * 0.34} y={cy - 31} width={82} height={62} rx={5} fill="#0f172a" stroke="white" strokeWidth={2} />
+        <rect x={width * 0.39} y={cy - 21} width={58} height={40} rx={3} fill="#67e8f9" opacity={0.82} />
+        <text x={width * 0.47} y={cy + 5} textAnchor="middle" fill="#0f172a" fontSize={10} fontWeight={900}>{label}</text>
+      </g>
+    );
+  }
+
+  if (kind === "speaker") {
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={28} fill="#111827" opacity={0.55} stroke="white" strokeWidth={2} />
+        <circle cx={cx} cy={cy} r={15} fill="rgba(255,255,255,0.38)" />
+      </g>
+    );
+  }
+
+  if (kind === "battery") {
+    return (
+      <g>
+        <rect x={cx - 44} y={cy - 18} width={82} height={36} rx={7} fill="#fbbf24" stroke="white" strokeWidth={2} />
+        <rect x={cx + 40} y={cy - 9} width={8} height={18} rx={2} fill="white" />
+        <text x={cx - 4} y={cy + 5} textAnchor="middle" fill="#78350f" fontSize={12} fontWeight={900}>3.7V</text>
+      </g>
+    );
+  }
+
+  if (kind === "charger" || kind === "usb-c" || kind === "pogo") {
+    return (
+      <g>
+        <rect x={cx - 34} y={cy - 24} width={68} height={48} rx={7} fill="rgba(255,255,255,0.22)" stroke="white" strokeWidth={2} />
+        <rect x={cx - 18} y={cy - 7} width={36} height={14} rx={4} fill="white" opacity={0.86} />
+        <text x={cx} y={cy + 24} textAnchor="middle" fill="white" fontSize={10} fontWeight={900}>{label}</text>
       </g>
     );
   }
@@ -52,26 +123,17 @@ function VisualGlyph({ kind, color, width, height, label }: { kind: string; colo
     );
   }
 
-  if (kind === "sensor" || kind === "module") {
-    return (
-      <g>
-        <rect x={cx - 33} y={cy - 24} width={66} height={48} rx={7} fill="rgba(255,255,255,0.22)" stroke="white" strokeWidth={2} />
-        <circle cx={cx - 20} cy={cy - 12} r={5} fill="white" opacity={0.9} />
-        <circle cx={cx + 20} cy={cy + 12} r={5} fill="white" opacity={0.9} />
-        <rect x={cx - 12} y={cy - 9} width={24} height={18} rx={3} fill="white" opacity={0.82} />
-      </g>
-    );
-  }
-
   return (
     <g>
-      <circle cx={cx} cy={cy} r={24} fill="rgba(255,255,255,0.22)" stroke="white" strokeWidth={2} />
+      <rect x={cx - 33} y={cy - 24} width={66} height={48} rx={7} fill="rgba(255,255,255,0.22)" stroke="white" strokeWidth={2} />
+      <circle cx={cx - 20} cy={cy - 12} r={5} fill="white" opacity={0.9} />
+      <circle cx={cx + 20} cy={cy + 12} r={5} fill="white" opacity={0.9} />
       <text x={cx} y={cy + 5} textAnchor="middle" fill="white" fontSize={12} fontWeight={800}>{label}</text>
     </g>
   );
 }
 
-export default function ComponentNode({ component, definition, perfboard, selected, onSelect, onMove }: ComponentNodeProps) {
+export default function ComponentNode({ component, definition, perfboard, selected, manualWireStart, onSelect, onMove, onPinClick }: ComponentNodeProps) {
   if (!definition) return null;
 
   const { width, height } = getComponentSize(definition.footprint);
@@ -124,15 +186,24 @@ export default function ComponentNode({ component, definition, perfboard, select
       <text x={width / 2} y={20} textAnchor="middle" fill="white" fontSize={13} fontWeight={800}>
         {definition.name}
       </text>
-      <VisualGlyph kind={definition.visual?.kind || "generic"} color={definition.color} width={width} height={height} label={definition.visual?.label || definition.name} />
+      <VisualGlyph component={component} definition={definition} width={width} height={height} />
       <text x={width / 2} y={height - 10} textAnchor="middle" fill="rgba(255,255,255,0.86)" fontSize={10}>
         {definition.footprint.cols}x{definition.footprint.rows} holes · {component.rotation}°
       </text>
       {definition.pins.map((pin, index) => {
         const y = ((index + 1) * height) / (definition.pins.length + 1);
+        const endpoint: ConnectionEndpoint = { kind: "component", componentId: component.id, pinId: pin.id };
+        const drafting = manualWireStart?.kind === "component" && manualWireStart.componentId === component.id && manualWireStart.pinId === pin.id;
         return (
-          <g key={pin.id}>
-            <circle cx={0} cy={y} r={6} fill="#fff" stroke="#111827" strokeWidth={1.2} />
+          <g
+            key={pin.id}
+            className="pin-anchor"
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              onPinClick(endpoint);
+            }}
+          >
+            <circle cx={0} cy={y} r={7} fill={drafting ? "#facc15" : "#fff"} stroke="#111827" strokeWidth={1.4} />
             <rect x={8} y={y - 9} width={Math.max(34, pin.label.length * 8 + 10)} height={18} rx={5} fill="rgba(15,23,42,0.68)" />
             <text x={14} y={y + 4} fill="white" fontSize={11} fontWeight={700}>
               {pin.label}

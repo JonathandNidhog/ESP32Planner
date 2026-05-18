@@ -4,12 +4,14 @@ import { downloadProject, readProjectFile } from "../io/projectIO";
 
 interface ToolbarProps {
   project: ProjectState;
+  manualWireStartActive: boolean;
   onAutoAssign: () => void;
   onClear: () => void;
+  onCancelManualWire: () => void;
   onImport: (project: ProjectState) => void;
 }
 
-export default function Toolbar({ project, onAutoAssign, onClear, onImport }: ToolbarProps) {
+export default function Toolbar({ project, manualWireStartActive, onAutoAssign, onClear, onCancelManualWire, onImport }: ToolbarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file?: File) {
@@ -26,6 +28,7 @@ export default function Toolbar({ project, onAutoAssign, onClear, onImport }: To
       </div>
       <div className="toolbar-actions">
         <button className="primary" onClick={onAutoAssign}>自动连接全部组件</button>
+        {manualWireStartActive && <button onClick={onCancelManualWire}>取消手动连线</button>}
         <button onClick={() => downloadProject(project)}>导出 JSON</button>
         <button onClick={() => inputRef.current?.click()}>导入 JSON</button>
         <button className="danger" onClick={onClear}>清空</button>

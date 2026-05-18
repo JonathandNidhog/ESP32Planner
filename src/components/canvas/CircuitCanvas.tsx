@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ComponentDefinition, Connection, ESP32BoardDefinition, PerfboardConfig, PlacedComponent, Point, Rotation } from "../../models/types";
+import type { ComponentDefinition, Connection, ConnectionEndpoint, ESP32BoardDefinition, PerfboardConfig, PlacedComponent, Point, Rotation } from "../../models/types";
 import ComponentNode from "./ComponentNode";
 import ESP32Board from "./ESP32Board";
 import PerfboardGrid from "./PerfboardGrid";
@@ -15,10 +15,14 @@ interface CircuitCanvasProps {
   boardRotation: Rotation;
   selectedComponentId?: string;
   selectedBoard: boolean;
+  selectedConnectionId?: string;
+  manualWireStart?: ConnectionEndpoint;
   onSelectComponent: (id?: string) => void;
   onSelectBoard: () => void;
+  onSelectConnection: (id?: string) => void;
   onMoveComponent: (id: string, x: number, y: number, col: number, row: number) => void;
   onMoveBoard: (position: Point) => void;
+  onPinClick: (endpoint: ConnectionEndpoint) => void;
 }
 
 const minZoom = 0.45;
@@ -34,12 +38,18 @@ export default function CircuitCanvas({
   boardRotation,
   selectedComponentId,
   selectedBoard,
+  selectedConnectionId,
+  manualWireStart,
   onSelectComponent,
   onSelectBoard,
+  onSelectConnection,
   onMoveComponent,
-  onMoveBoard
+  onMoveBoard,
+  onPinClick
 }: CircuitCanvasProps) {
-  const usedPinIds = new Set(connections.map((connection) => connection.esp32PinId));
+  const usedPinIds = new Set(
+    connections.flatMap((connection) => [connection.from, connection.to]).filter((endpoint) => endpoint.kind === "esp32").map((endpoint) => endpoint.pinId)
+  );
   const worldWidth = Math.max(1120, 380 + perfboard.cols * perfboard.cellSize + 260);
   const worldHeight = Math.max(720, 110 + perfboard.rows * perfboard.cellSize + 240);
   const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
@@ -73,6 +83,7 @@ export default function CircuitCanvas({
   function handleCanvasPointerDown(event: React.PointerEvent<SVGSVGElement>) {
     if (event.target !== event.currentTarget && !(event.target as Element).classList.contains("canvas-background")) return;
     onSelectComponent(undefined);
+    onSelectConnection(undefined);
     const svg = event.currentTarget;
     const start = svgPoint(svg, event.clientX, event.clientY);
     const startViewport = { ...viewport };
@@ -104,6 +115,7 @@ export default function CircuitCanvas({
         <button onClick={() => setViewport((current) => ({ ...current, zoom: Math.min(maxZoom, current.zoom * 1.15) }))}>放大</button>
         <button onClick={() => setViewport((current) => ({ ...current, zoom: Math.max(minZoom, current.zoom * 0.85) }))}>缩小</button>
         <button onClick={resetViewport}>重置视口</button>
+        {manualWireStart && <span className="wire-draft-label">选择终点</span>}
       </div>
       <svg
         className="circuit-canvas"
@@ -125,6 +137,11 @@ export default function CircuitCanvas({
           boardPins={board.pins}
           boardPosition={boardPosition}
           boardRotation={boardRotation}
+          selectedConnectionId={selectedConnectionId}
+          onSelectConnection={(id) => {
+            onSelectComponent(undefined);
+            onSelectConnection(id);
+          }}
         />
         <ESP32Board
           board={board}
@@ -135,8 +152,10 @@ export default function CircuitCanvas({
           viewWidth={worldWidth}
           viewHeight={worldHeight}
           perfboard={perfboard}
+          manualWireStart={manualWireStart}
           onSelect={onSelectBoard}
           onMove={onMoveBoard}
+          onPinClick={onPinClick}
         />
         {components.map((component) => (
           <ComponentNode
@@ -145,8 +164,10 @@ export default function CircuitCanvas({
             definition={library.find((item) => item.type === component.type)}
             perfboard={perfboard}
             selected={selectedComponentId === component.id}
+            manualWireStart={manualWireStart}
             onSelect={onSelectComponent}
             onMove={onMoveComponent}
+            onPinClick={onPinClick}
           />
         ))}
       </svg>

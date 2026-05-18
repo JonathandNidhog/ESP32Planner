@@ -1,5 +1,5 @@
 import { boardMetrics, getBoardHeight, snapPointToPerfboard } from "../../engine/router";
-import type { ESP32BoardDefinition, PerfboardConfig, Point, Rotation } from "../../models/types";
+import type { ConnectionEndpoint, ESP32BoardDefinition, PerfboardConfig, Point, Rotation } from "../../models/types";
 
 interface ESP32BoardProps {
   board: ESP32BoardDefinition;
@@ -10,11 +10,26 @@ interface ESP32BoardProps {
   viewWidth: number;
   viewHeight: number;
   perfboard: PerfboardConfig;
+  manualWireStart?: ConnectionEndpoint;
   onSelect: () => void;
   onMove: (position: Point) => void;
+  onPinClick: (endpoint: ConnectionEndpoint) => void;
 }
 
-export default function ESP32Board({ board, usedPinIds, position, rotation, selected, viewWidth, viewHeight, perfboard, onSelect, onMove }: ESP32BoardProps) {
+export default function ESP32Board({
+  board,
+  usedPinIds,
+  position,
+  rotation,
+  selected,
+  viewWidth,
+  viewHeight,
+  perfboard,
+  manualWireStart,
+  onSelect,
+  onMove,
+  onPinClick
+}: ESP32BoardProps) {
   const { espW, pinPitch } = boardMetrics;
   const espH = getBoardHeight(board.pins);
   const center = { x: espW / 2, y: espH / 2 };
@@ -69,7 +84,7 @@ export default function ESP32Board({ board, usedPinIds, position, rotation, sele
         {board.pins.length}-pin planning model · {rotation}°
       </text>
       <text x={espW / 2} y={espH - 16} textAnchor="middle" fill="#facc15" fontSize={11} fontWeight={800}>
-        拖动吸附孔位 · 右侧面板旋转
+        拖动吸附孔位 · 点击引脚手动连线
       </text>
 
       {board.pins.map((pin) => {
@@ -81,10 +96,19 @@ export default function ESP32Board({ board, usedPinIds, position, rotation, sele
         const isPower = pin.capabilities.some((cap) => cap.startsWith("power"));
         const isGround = pin.capabilities.includes("ground");
         const fill = used ? "#facc15" : isPower ? "#ef4444" : isGround ? "#475569" : "#38bdf8";
+        const endpoint: ConnectionEndpoint = { kind: "esp32", pinId: pin.id };
+        const drafting = manualWireStart?.kind === "esp32" && manualWireStart.pinId === pin.id;
 
         return (
-          <g key={pin.id}>
-            <circle cx={pinX} cy={y} r={8} fill={fill} stroke="#f8fafc" strokeWidth={1.5}>
+          <g
+            key={pin.id}
+            className="pin-anchor"
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              onPinClick(endpoint);
+            }}
+          >
+            <circle cx={pinX} cy={y} r={drafting ? 10 : 8} fill={drafting ? "#facc15" : fill} stroke="#f8fafc" strokeWidth={1.5}>
               <title>{pin.warnings?.join("；") || pin.capabilities.join(" / ")}</title>
             </circle>
             <text x={labelX} y={y + 4} textAnchor={anchor} fill="#e2e8f0" fontSize={11}>

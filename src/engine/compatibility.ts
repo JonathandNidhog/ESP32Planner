@@ -1,10 +1,14 @@
-import type { ESP32Pin, PinCapability } from "../models/types";
+import type { ESP32Pin, PinCapability, PinRole } from "../models/types";
 
 const inputOnlyGpios = new Set([34, 35, 36, 39]);
 const lowPriorityWarningKeywords = ["启动", "UART0", "板载"];
+const powerCapabilities: PinCapability[] = ["power-3v3", "power-5v"];
+const signalCapabilities: PinCapability[] = ["digital", "analog", "i2c-sda", "i2c-scl", "pwm", "uart"];
 
-export function pinSupports(pin: ESP32Pin, required: PinCapability[]): boolean {
-  return required.some((capability) => pin.capabilities.includes(capability));
+export function pinSupports(pin: ESP32Pin, required: PinCapability[], role: PinRole = "signal"): boolean {
+  if (role === "ground") return pin.capabilities.includes("ground");
+  if (role === "power") return required.some((capability) => powerCapabilities.includes(capability) && pin.capabilities.includes(capability));
+  return required.some((capability) => signalCapabilities.includes(capability) && pin.capabilities.includes(capability));
 }
 
 export function isOutputUnsafe(pin: ESP32Pin, required: PinCapability[]): boolean {
