@@ -1,10 +1,12 @@
 import { esp32Boards } from "../data/esp32Boards";
-import type { PerfboardConfig } from "../models/types";
+import type { PerfboardConfig, Rotation } from "../models/types";
 
 interface BoardSettingsPanelProps {
   boardId: string;
+  boardRotation: Rotation;
   perfboard: PerfboardConfig;
   onBoardChange: (boardId: string) => void;
+  onBoardRotate: () => void;
   onPerfboardChange: (config: PerfboardConfig) => void;
 }
 
@@ -13,7 +15,7 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
-export default function BoardSettingsPanel({ boardId, perfboard, onBoardChange, onPerfboardChange }: BoardSettingsPanelProps) {
+export default function BoardSettingsPanel({ boardId, boardRotation, perfboard, onBoardChange, onBoardRotate, onPerfboardChange }: BoardSettingsPanelProps) {
   const selectedBoard = esp32Boards.find((board) => board.id === boardId) || esp32Boards[0];
 
   function updatePerfboard(partial: Partial<PerfboardConfig>) {
@@ -34,6 +36,10 @@ export default function BoardSettingsPanel({ boardId, perfboard, onBoardChange, 
         </select>
       </label>
       <p className="hint">{selectedBoard.description}</p>
+      <div className="button-row">
+        <button onClick={onBoardRotate}>旋转开发板 90°</button>
+        <span className="custom-count">开发板 {boardRotation}°</span>
+      </div>
       <div className="settings-grid">
         <label>
           列数

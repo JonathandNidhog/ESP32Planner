@@ -1,4 +1,4 @@
-import { boardMetrics, clampToPerfboard } from "../../engine/router";
+import { boardMetrics, clampToPerfboard, getComponentSize } from "../../engine/router";
 import type { ComponentDefinition, PerfboardConfig, PlacedComponent } from "../../models/types";
 
 interface ComponentNodeProps {
@@ -74,8 +74,8 @@ function VisualGlyph({ kind, color, width, height, label }: { kind: string; colo
 export default function ComponentNode({ component, definition, perfboard, selected, onSelect, onMove }: ComponentNodeProps) {
   if (!definition) return null;
 
-  const width = Math.max(boardMetrics.componentW, definition.footprint.cols * boardMetrics.gridCell);
-  const height = Math.max(boardMetrics.componentH, definition.footprint.rows * boardMetrics.gridCell);
+  const { width, height } = getComponentSize(definition.footprint);
+  const center = { x: width / 2, y: height / 2 };
 
   function onPointerDown(event: React.PointerEvent<SVGGElement>) {
     event.stopPropagation();
@@ -114,7 +114,11 @@ export default function ComponentNode({ component, definition, perfboard, select
   }
 
   return (
-    <g className={`component-node ${selected ? "selected" : ""}`} transform={`translate(${component.x}, ${component.y})`} onPointerDown={onPointerDown}>
+    <g
+      className={`component-node ${selected ? "selected" : ""}`}
+      transform={`translate(${component.x}, ${component.y}) rotate(${component.rotation}, ${center.x}, ${center.y})`}
+      onPointerDown={onPointerDown}
+    >
       <rect width={width} height={height} rx={12} fill={definition.color} opacity={0.96} stroke={selected ? "#facc15" : "#0f172a"} strokeWidth={selected ? 3 : 1.5} />
       <rect x={8} y={8} width={width - 16} height={height - 16} rx={9} fill="rgba(255,255,255,0.12)" />
       <text x={width / 2} y={20} textAnchor="middle" fill="white" fontSize={13} fontWeight={800}>
@@ -122,7 +126,7 @@ export default function ComponentNode({ component, definition, perfboard, select
       </text>
       <VisualGlyph kind={definition.visual?.kind || "generic"} color={definition.color} width={width} height={height} label={definition.visual?.label || definition.name} />
       <text x={width / 2} y={height - 10} textAnchor="middle" fill="rgba(255,255,255,0.86)" fontSize={10}>
-        {definition.footprint.cols}x{definition.footprint.rows} holes
+        {definition.footprint.cols}x{definition.footprint.rows} holes · {component.rotation}°
       </text>
       {definition.pins.map((pin, index) => {
         const y = ((index + 1) * height) / (definition.pins.length + 1);

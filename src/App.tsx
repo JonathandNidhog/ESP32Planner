@@ -21,6 +21,7 @@ function makeDefaultProject(): ProjectState {
     name: "esp32-perfboard-plan",
     boardId: defaultBoardId,
     boardPosition: defaultBoardPosition,
+    boardRotation: 0,
     perfboard: defaultPerfboard,
     components: [],
     customComponents: [],
@@ -36,6 +37,7 @@ function normalizeProject(project?: Partial<ProjectState>): ProjectState {
     ...project,
     boardId: project?.boardId || defaultBoardId,
     boardPosition: { ...defaultBoardPosition, ...(project?.boardPosition || {}) },
+    boardRotation: project?.boardRotation || 0,
     perfboard: { ...defaultPerfboard, ...(project?.perfboard || {}) },
     customComponents: project?.customComponents || [],
     messages: project?.messages || ["从左侧添加元器件，然后点击自动连接。"],
@@ -96,6 +98,18 @@ export default function App() {
       ...current,
       boardPosition: position
     }));
+  }
+
+  function rotateBoard() {
+    const rotations: Rotation[] = [0, 90, 180, 270];
+    setProject((current) => {
+      const nextIndex = (rotations.indexOf(current.boardRotation) + 1) % rotations.length;
+      return {
+        ...current,
+        boardRotation: rotations[nextIndex],
+        messages: [`开发板已旋转到 ${rotations[nextIndex]}°。`, ...current.messages].slice(0, 8)
+      };
+    });
   }
 
   function deleteComponent(id: string) {
@@ -188,6 +202,7 @@ export default function App() {
           components={project.components}
           connections={project.connections}
           boardPosition={project.boardPosition}
+          boardRotation={project.boardRotation}
           selectedComponentId={project.selectedComponentId}
           selectedBoard={selectedBoard}
           onSelectComponent={(id) => {
@@ -204,8 +219,10 @@ export default function App() {
         <aside className="panel inspector">
           <BoardSettingsPanel
             boardId={project.boardId}
+            boardRotation={project.boardRotation}
             perfboard={project.perfboard}
             onBoardChange={changeBoard}
+            onBoardRotate={rotateBoard}
             onPerfboardChange={changePerfboard}
           />
           <PropertyPanel

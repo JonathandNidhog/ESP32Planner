@@ -1,20 +1,23 @@
-import { boardMetrics, getBoardHeight } from "../../engine/router";
-import type { ESP32BoardDefinition, Point } from "../../models/types";
+import { boardMetrics, getBoardHeight, snapPointToPerfboard } from "../../engine/router";
+import type { ESP32BoardDefinition, PerfboardConfig, Point, Rotation } from "../../models/types";
 
 interface ESP32BoardProps {
   board: ESP32BoardDefinition;
   usedPinIds: Set<string>;
   position: Point;
+  rotation: Rotation;
   selected: boolean;
   viewWidth: number;
   viewHeight: number;
+  perfboard: PerfboardConfig;
   onSelect: () => void;
   onMove: (position: Point) => void;
 }
 
-export default function ESP32Board({ board, usedPinIds, position, selected, viewWidth, viewHeight, onSelect, onMove }: ESP32BoardProps) {
+export default function ESP32Board({ board, usedPinIds, position, rotation, selected, viewWidth, viewHeight, perfboard, onSelect, onMove }: ESP32BoardProps) {
   const { espW, pinPitch } = boardMetrics;
   const espH = getBoardHeight(board.pins);
+  const center = { x: espW / 2, y: espH / 2 };
 
   function onPointerDown(event: React.PointerEvent<SVGGElement>) {
     event.stopPropagation();
@@ -35,8 +38,9 @@ export default function ESP32Board({ board, usedPinIds, position, selected, view
       point.x = moveEvent.clientX;
       point.y = moveEvent.clientY;
       const transformed = point.matrixTransform(svg.getScreenCTM()?.inverse());
-      const nextX = Math.max(20, Math.min(transformed.x - offsetX, viewWidth - espW - 20));
-      const nextY = Math.max(20, Math.min(transformed.y - offsetY, viewHeight - espH - 20));
+      const snapped = snapPointToPerfboard({ x: transformed.x - offsetX, y: transformed.y - offsetY }, perfboard);
+      const nextX = Math.max(20, Math.min(snapped.x, viewWidth - espW - 20));
+      const nextY = Math.max(20, Math.min(snapped.y, viewHeight - espH - 20));
       onMove({ x: Math.round(nextX), y: Math.round(nextY) });
     };
 
@@ -50,7 +54,11 @@ export default function ESP32Board({ board, usedPinIds, position, selected, view
   }
 
   return (
-    <g className={`esp32-board ${selected ? "selected" : ""}`} transform={`translate(${position.x}, ${position.y})`} onPointerDown={onPointerDown}>
+    <g
+      className={`esp32-board ${selected ? "selected" : ""}`}
+      transform={`translate(${position.x}, ${position.y}) rotate(${rotation}, ${center.x}, ${center.y})`}
+      onPointerDown={onPointerDown}
+    >
       <rect width={espW} height={espH} rx={18} fill="#0f172a" stroke={selected ? "#facc15" : "#1e293b"} strokeWidth={selected ? 4 : 3} />
       <rect x={48} y={28} width={espW - 96} height={78} rx={10} fill="#334155" stroke="#64748b" />
       <rect x={72} y={48} width={espW - 144} height={36} rx={6} fill="#94a3b8" />
@@ -58,10 +66,10 @@ export default function ESP32Board({ board, usedPinIds, position, selected, view
         {board.shortName}
       </text>
       <text x={espW / 2} y={152} textAnchor="middle" fill="#94a3b8" fontSize={11}>
-        {board.pins.length}-pin planning model
+        {board.pins.length}-pin planning model · {rotation}°
       </text>
       <text x={espW / 2} y={espH - 16} textAnchor="middle" fill="#facc15" fontSize={11} fontWeight={800}>
-        拖动板子调整位置
+        拖动吸附孔位 · 右侧面板旋转
       </text>
 
       {board.pins.map((pin) => {

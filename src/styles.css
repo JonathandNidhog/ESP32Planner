@@ -139,12 +139,37 @@ button.danger {
 }
 
 .canvas-shell {
+  position: relative;
   min-width: 0;
   border-radius: 18px;
   overflow: hidden;
   border: 1px solid #cbd5e1;
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.09);
   background: #e5edf7;
+}
+
+.viewport-toolbar {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(10px);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.viewport-toolbar button {
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 12px;
 }
 
 .circuit-canvas {

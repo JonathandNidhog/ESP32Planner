@@ -93,6 +93,7 @@ export interface ProjectState {
   name: string;
   boardId: string;
   boardPosition: Point;
+  boardRotation: Rotation;
   perfboard: PerfboardConfig;
   components: PlacedComponent[];
   customComponents: ComponentDefinition[];

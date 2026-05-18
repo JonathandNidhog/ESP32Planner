@@ -4,3 +4,4 @@ dist/
 *.log
 .DS_Store
 esp32-local-planner.zip
+release/

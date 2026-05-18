@@ -1,4 +1,5 @@
-import type { ComponentDefinition, Connection, ESP32BoardDefinition, PerfboardConfig, PlacedComponent, Point } from "../../models/types";
+import { useState } from "react";
+import type { ComponentDefinition, Connection, ESP32BoardDefinition, PerfboardConfig, PlacedComponent, Point, Rotation } from "../../models/types";
 import ComponentNode from "./ComponentNode";
 import ESP32Board from "./ESP32Board";
 import PerfboardGrid from "./PerfboardGrid";
@@ -11,6 +12,7 @@ interface CircuitCanvasProps {
   components: PlacedComponent[];
   connections: Connection[];
   boardPosition: Point;
+  boardRotation: Rotation;
   selectedComponentId?: string;
   selectedBoard: boolean;
   onSelectComponent: (id?: string) => void;
@@ -19,6 +21,9 @@ interface CircuitCanvasProps {
   onMoveBoard: (position: Point) => void;
 }
 
+const minZoom = 0.45;
+const maxZoom = 2.4;
+
 export default function CircuitCanvas({
   board,
   perfboard,
@@ -26,6 +31,7 @@ export default function CircuitCanvas({
   components,
   connections,
   boardPosition,
+  boardRotation,
   selectedComponentId,
   selectedBoard,
   onSelectComponent,
@@ -34,27 +40,101 @@ export default function CircuitCanvas({
   onMoveBoard
 }: CircuitCanvasProps) {
   const usedPinIds = new Set(connections.map((connection) => connection.esp32PinId));
-  const viewWidth = Math.max(1120, 380 + perfboard.cols * perfboard.cellSize + 90);
-  const viewHeight = Math.max(640, 110 + perfboard.rows * perfboard.cellSize + 70);
+  const worldWidth = Math.max(1120, 380 + perfboard.cols * perfboard.cellSize + 260);
+  const worldHeight = Math.max(720, 110 + perfboard.rows * perfboard.cellSize + 240);
+  const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
+  const viewWidth = worldWidth / viewport.zoom;
+  const viewHeight = worldHeight / viewport.zoom;
+
+  function svgPoint(svg: SVGSVGElement, clientX: number, clientY: number) {
+    const point = svg.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+    return point.matrixTransform(svg.getScreenCTM()?.inverse());
+  }
+
+  function handleWheel(event: React.WheelEvent<SVGSVGElement>) {
+    event.preventDefault();
+    const svg = event.currentTarget;
+    const before = svgPoint(svg, event.clientX, event.clientY);
+    const zoomFactor = event.deltaY < 0 ? 1.12 : 0.88;
+    const nextZoom = Math.max(minZoom, Math.min(maxZoom, viewport.zoom * zoomFactor));
+    const nextViewWidth = worldWidth / nextZoom;
+    const nextViewHeight = worldHeight / nextZoom;
+    const ratioX = (before.x - viewport.x) / viewWidth;
+    const ratioY = (before.y - viewport.y) / viewHeight;
+    setViewport({
+      zoom: nextZoom,
+      x: Math.max(0, Math.min(before.x - ratioX * nextViewWidth, Math.max(0, worldWidth - nextViewWidth))),
+      y: Math.max(0, Math.min(before.y - ratioY * nextViewHeight, Math.max(0, worldHeight - nextViewHeight)))
+    });
+  }
+
+  function handleCanvasPointerDown(event: React.PointerEvent<SVGSVGElement>) {
+    if (event.target !== event.currentTarget && !(event.target as Element).classList.contains("canvas-background")) return;
+    onSelectComponent(undefined);
+    const svg = event.currentTarget;
+    const start = svgPoint(svg, event.clientX, event.clientY);
+    const startViewport = { ...viewport };
+
+    const move = (moveEvent: PointerEvent) => {
+      const current = svgPoint(svg, moveEvent.clientX, moveEvent.clientY);
+      const nextX = Math.max(0, Math.min(startViewport.x - (current.x - start.x), Math.max(0, worldWidth - viewWidth)));
+      const nextY = Math.max(0, Math.min(startViewport.y - (current.y - start.y), Math.max(0, worldHeight - viewHeight)));
+      setViewport((old) => ({ ...old, x: nextX, y: nextY }));
+    };
+
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  function resetViewport() {
+    setViewport({ x: 0, y: 0, zoom: 1 });
+  }
 
   return (
     <div className="canvas-shell">
-      <svg className="circuit-canvas" viewBox={`0 0 ${viewWidth} ${viewHeight}`} onPointerDown={() => onSelectComponent(undefined)}>
+      <div className="viewport-toolbar">
+        <span>缩放 {Math.round(viewport.zoom * 100)}%</span>
+        <button onClick={() => setViewport((current) => ({ ...current, zoom: Math.min(maxZoom, current.zoom * 1.15) }))}>放大</button>
+        <button onClick={() => setViewport((current) => ({ ...current, zoom: Math.max(minZoom, current.zoom * 0.85) }))}>缩小</button>
+        <button onClick={resetViewport}>重置视口</button>
+      </div>
+      <svg
+        className="circuit-canvas"
+        viewBox={`${viewport.x} ${viewport.y} ${viewWidth} ${viewHeight}`}
+        onWheel={handleWheel}
+        onPointerDown={handleCanvasPointerDown}
+      >
         <defs>
           <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow dx="0" dy="8" stdDeviation="8" floodColor="#0f172a" floodOpacity="0.18" />
           </filter>
         </defs>
-        <rect width={viewWidth} height={viewHeight} fill="#e5edf7" />
+        <rect className="canvas-background" width={worldWidth} height={worldHeight} fill="#e5edf7" />
         <PerfboardGrid perfboard={perfboard} />
-        <WireLayer components={components} connections={connections} library={library} boardPins={board.pins} boardPosition={boardPosition} />
+        <WireLayer
+          components={components}
+          connections={connections}
+          library={library}
+          boardPins={board.pins}
+          boardPosition={boardPosition}
+          boardRotation={boardRotation}
+        />
         <ESP32Board
           board={board}
           usedPinIds={usedPinIds}
           position={boardPosition}
+          rotation={boardRotation}
           selected={selectedBoard}
-          viewWidth={viewWidth}
-          viewHeight={viewHeight}
+          viewWidth={worldWidth}
+          viewHeight={worldHeight}
+          perfboard={perfboard}
           onSelect={onSelectBoard}
           onMove={onMoveBoard}
         />

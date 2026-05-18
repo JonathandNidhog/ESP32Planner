@@ -1,5 +1,5 @@
 import { getConnectionAnchor, routeConnection, connectionPath } from "../../engine/router";
-import type { ComponentDefinition, Connection, ESP32Pin, PlacedComponent, Point } from "../../models/types";
+import type { ComponentDefinition, Connection, ESP32Pin, PlacedComponent, Point, Rotation } from "../../models/types";
 
 interface WireLayerProps {
   components: PlacedComponent[];
@@ -7,9 +7,10 @@ interface WireLayerProps {
   library: ComponentDefinition[];
   boardPins: ESP32Pin[];
   boardPosition: Point;
+  boardRotation: Rotation;
 }
 
-export default function WireLayer({ components, connections, library, boardPins, boardPosition }: WireLayerProps) {
+export default function WireLayer({ components, connections, library, boardPins, boardPosition, boardRotation }: WireLayerProps) {
   return (
     <g className="wire-layer">
       {connections.map((connection) => {
@@ -17,7 +18,16 @@ export default function WireLayer({ components, connections, library, boardPins,
         const definition = library.find((item) => item.type === component?.type);
         if (!component || !definition) return null;
         const pinIndex = definition.pins.findIndex((pin) => pin.id === connection.componentPinId);
-        const anchors = getConnectionAnchor(connection, component, Math.max(0, pinIndex), definition.pins.length, boardPins, boardPosition);
+        const anchors = getConnectionAnchor(
+          connection,
+          component,
+          Math.max(0, pinIndex),
+          definition.pins.length,
+          boardPins,
+          boardPosition,
+          boardRotation,
+          definition.footprint
+        );
         const points = routeConnection(anchors.from, anchors.to);
         return (
           <path
