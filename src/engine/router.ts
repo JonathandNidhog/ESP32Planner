@@ -97,17 +97,22 @@ export function getEndpointPoint(
 }
 
 export function routeConnection(from: Point, to: Point, index = 0): Point[] {
+  const waypoints = createAutoWaypoints(from, to, index);
+  return [from, ...waypoints, to];
+}
+
+export function createAutoWaypoints(from: Point, to: Point, index = 0): Point[] {
   const channel = (index % 12) - 5.5;
   const offset = channel * 8;
   const horizontalFirst = Math.abs(from.x - to.x) > Math.abs(from.y - to.y);
 
   if (horizontalFirst) {
     const midX = Math.round((from.x + to.x) / 2 + offset);
-    return [from, { x: midX, y: from.y }, { x: midX, y: to.y }, to];
+    return [{ x: midX, y: from.y }, { x: midX, y: to.y }];
   }
 
   const midY = Math.round((from.y + to.y) / 2 + offset);
-  return [from, { x: from.x, y: midY }, { x: to.x, y: midY }, to];
+  return [{ x: from.x, y: midY }, { x: to.x, y: midY }];
 }
 
 export function connectionPath(points: Point[]): string {

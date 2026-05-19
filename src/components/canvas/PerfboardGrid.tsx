@@ -19,6 +19,8 @@ export default function PerfboardGrid({ perfboard, onResize }: PerfboardGridProp
   const { gridX, gridY } = boardMetrics;
   const width = perfboard.cols * perfboard.cellSize;
   const height = perfboard.rows * perfboard.cellSize;
+  const holeRadius = Math.max(2.2, perfboard.cellSize * 0.18);
+  const patternId = `perfboard-hole-${perfboard.cellSize}`;
 
   function pointerToSvg(svg: SVGSVGElement, clientX: number, clientY: number) {
     const point = svg.createSVGPoint();
@@ -50,20 +52,13 @@ export default function PerfboardGrid({ perfboard, onResize }: PerfboardGridProp
 
   return (
     <g className="perfboard-grid">
+      <defs>
+        <pattern id={patternId} width={perfboard.cellSize} height={perfboard.cellSize} patternUnits="userSpaceOnUse">
+          <circle cx={0} cy={0} r={holeRadius} fill="#e2e8f0" stroke="#94a3b8" strokeWidth={0.6} />
+        </pattern>
+      </defs>
       <rect x={gridX - 14} y={gridY - 14} width={width + 28} height={height + 28} rx={18} fill="#f8fafc" stroke="#cbd5e1" />
-      {Array.from({ length: perfboard.rows }).map((_, row) =>
-        Array.from({ length: perfboard.cols }).map((__, col) => (
-          <circle
-            key={`${row}-${col}`}
-            cx={gridX + col * perfboard.cellSize}
-            cy={gridY + row * perfboard.cellSize}
-            r={Math.max(2.2, perfboard.cellSize * 0.18)}
-            fill="#e2e8f0"
-            stroke="#94a3b8"
-            strokeWidth={0.6}
-          />
-        ))
-      )}
+      <rect x={gridX} y={gridY} width={width + 1} height={height + 1} fill={`url(#${patternId})`} />
       <text x={gridX} y={gridY - 24} className="canvas-label">
         万能板规划区 - {perfboard.cols} x {perfboard.rows}，右/下边缘可拖动调整行列
       </text>

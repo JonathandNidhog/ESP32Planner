@@ -11,7 +11,7 @@ import { componentLibrary } from "./data/componentLibrary";
 import { defaultBoardId, getBoardDefinition } from "./data/esp32Boards";
 import { autoAssignPins } from "./engine/autoAssign";
 import { validateConnection } from "./engine/connectionValidator";
-import { boardMetrics, defaultBoardPosition } from "./engine/router";
+import { boardMetrics, createAutoWaypoints, defaultBoardPosition, getEndpointPoint } from "./engine/router";
 import { clearSavedProject, loadProject, saveProject } from "./io/projectIO";
 import type { ComponentDefinition, Connection, ConnectionEndpoint, PerfboardConfig, PlacedComponent, Point, ProjectState, Rotation } from "./models/types";
 
@@ -296,6 +296,8 @@ export default function App() {
       return;
     }
 
+    const fromPoint = getEndpointPoint(manualWireStart, currentBoard.pins, project.boardPosition, project.boardRotation, project.components, fullLibrary);
+    const toPoint = getEndpointPoint(endpoint, currentBoard.pins, project.boardPosition, project.boardRotation, project.components, fullLibrary);
     const connection: Connection = {
       id: `manual-${endpointId(manualWireStart)}-${endpointId(endpoint)}-${Date.now().toString(36)}`,
       from: manualWireStart,
@@ -303,7 +305,8 @@ export default function App() {
       color: validation.color,
       status: validation.severity,
       message: validation.message,
-      manual: true
+      manual: true,
+      waypoints: createAutoWaypoints(fromPoint, toPoint, project.connections.length)
     };
 
     setManualWireStart(undefined);

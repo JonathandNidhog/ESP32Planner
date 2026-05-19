@@ -2,6 +2,7 @@ import { componentLibrary } from "../data/componentLibrary";
 import type { AssignmentResult, ComponentDefinition, Connection, ConnectionEndpoint, ESP32Pin, PlacedComponent } from "../models/types";
 import { describePinWarning, getPinScore, isOutputUnsafe, pinSupports } from "./compatibility";
 import { validateConnection } from "./connectionValidator";
+import { createAutoWaypoints, getEndpointPoint, defaultBoardPosition } from "./router";
 
 const reusablePinPrefixes = ["gnd", "3v3", "vin", "5v"];
 
@@ -64,13 +65,18 @@ export function autoAssignPins(
         messages.push(`${definition.name}.${componentPin.label} 使用 ${warning}`);
       }
 
+      const from: ConnectionEndpoint = { kind: "esp32", pinId: selected.id };
+      const to = componentEndpoint;
+      const fromPoint = getEndpointPoint(from, boardPins, defaultBoardPosition, 0, components, library);
+      const toPoint = getEndpointPoint(to, boardPins, defaultBoardPosition, 0, components, library);
       nextConnections.push({
         id: `auto-${component.id}-${componentPin.id}-${selected.id}`,
-        from: { kind: "esp32", pinId: selected.id },
-        to: componentEndpoint,
+        from,
+        to,
         color: validation.color,
         status: validation.severity,
         message: warning || validation.message,
+        waypoints: createAutoWaypoints(fromPoint, toPoint, nextConnections.length),
         warning
       });
     }
